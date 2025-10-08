@@ -1,0 +1,522 @@
+  async function downloadSelected() {
+    if (selectedFiles.size === 0) return;
+
+    // Group files by acquisition
+    const filesByAcq = {};
+    Array.from(selectedFiles).forEach(idx => {
+      const file = currentFiles[idx];
+      const acqId = file.acquisition_id;
+      if (!filesByAcq[acqId]) {
+        filesByAcq[acqId] = [];
+      }
+      filesByAcq[acqId].push(file.name);
+    });
+
+    $btnDownload.disabled = true;
+    $downloadText.style.display = 'none';
+    $downloadSpinner.style.display = 'inline-block';
+
+    const allResults = [];
+    const allErrors = [];
+
+    try {
+      // Download from each acquisition
+      for (const [acqId, filenames] of Object.entries(filesByAcq)) {
+        try {
+          const result = await fetchJSON('/flywheel/download', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              acquisition_id: acqId,
+              filenames: filenames
+            })
+          });
+
+          allResults.push(...result.downloaded);
+          if (result.errors && result.errors.length) {
+            allErrors.push(...result.errors);
+          }
+        } catch (e) {
+          allErrors.push(`Acquisition ${acqId}: ${e.message}`);
+        }
+      }
+
+      if (allResults.length > 0) {
+        showMessage(
+          `✓ Successfully downloaded ${allResults.length} file(s)`,
+          'ok',
+          { downloaded: allResults, errors: allErrors }
+        );
+      } else {
+        showMessage(
+          `❌ Download failed: ${allErrors.join('; ')}`,
+          'err'
+        );
+      }
+
+    } catch (e) {
+      showMessage(`Download failed: ${e.message}`, 'err');
+    } finally {
+      $btnDownload.disabled = false;
+      $downloadText.style.display = 'inline';
+      $downloadSpinner.style.display = 'none';
+    }
+  }
+
+  function showMessage(text, type, details = null) {
+    $results.style.display = 'block';
+    $results.className = 'card';
+
+    let html = `<div class="msg ${type}">${text}</div>`;
+
+    if (details) {
+      if (details.downloaded && details.downloaded.length) {
+        html += '<div style="margin-top: 12px;"><strong>Downloaded files:</strong><ul style="margin: 8px 0 0 20px;">';
+        details.downloaded.forEach(f => {
+          html += `<li><code>${f}</code></li>`;
+        });
+        html += '</ul></div>';
+      }
+
+      if (details.errors && details.errors.length) {
+        html += '<div style="margin-top: 12px;"><strong>Errors:</strong><ul style="margin: 8px 0 0 20px; color: #b91c1c;">';
+        details.errors.forEach(e => {
+          html += `<li>${e}</li>`;
+        });
+        html += '</ul></div>';
+      }
+    }
+
+    $results.innerHTML = html;
+    $results.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  $btnSearch.addEventListener('click', searchData);
+  $searchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') searchData();
+  });
+  $btnDownload.addEventListener('click', downloadSelected);
+
+  checkStatus();
+</script>
+</body>
+</html><!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Flywheel Image Downloader</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, sans-serif; }
+    body { margin: 0; background: #fafafa; color: #111; }
+    .wrap { max-width: 800px; margin: 32px auto; padding: 0 16px; }
+    h1 { margin-bottom: 8px; }
+    .card { background: #fff; border: 1px solid #e6e6e6; border-radius: 14px; padding: 20px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.03); margin-bottom: 16px; }
+    .status-badge { padding: 6px 12px; border-radius: 12px; font-size: 13px; font-weight: 600; }
+    .status-connected { background: #dcfce7; color: #166534; }
+    .status-disconnected { background: #fee2e2; color: #991b1b; }
+    .status-checking { background: #fef3c7; color: #92400e; }
+
+    label { font-weight: 600; display: block; margin-bottom: 8px; }
+    input[type="text"] { width: 100%; padding: 10px; font: inherit; border: 1px solid #ddd;
+                         border-radius: 8px; box-sizing: border-box; }
+    button { padding: 10px 16px; border-radius: 8px; border: 1px solid #ddd;
+             background: #2563eb; color: white; cursor: pointer; font: inherit; font-weight: 600; }
+    button:hover { background: #1d4ed8; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; background: #9ca3af; }
+    button.secondary { background: #f5f5f5; color: #111; }
+    button.secondary:hover { background: #efefef; }
+
+    .row { display: flex; gap: 12px; align-items: center; }
+    .file-item { border: 1px solid #e6e6e6; border-radius: 8px; padding: 12px; margin: 8px 0; }
+    .file-item.selected { border-color: #2563eb; background: #eff6ff; }
+    .muted { color: #777; font-size: 0.9em; }
+    .msg { margin-top: 12px; padding: 12px; border-radius: 8px; }
+    .msg.ok { border: 1px solid #cdeccd; background: #f5fff5; color: #0a5c0a; }
+    .msg.err { border: 1px solid #f1cccc; background: #fff6f6; color: #b91c1c; }
+    .msg.info { border: 1px solid #bfdbfe; background: #eff6ff; color: #1e40af; }
+
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid #ddd;
+               border-top-color: #2563eb; border-radius: 50%; animation: spin 0.6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .checkbox-label { display: flex; align-items: center; gap: 8px; cursor: pointer;
+                      padding: 8px; border-radius: 6px; }
+    .checkbox-label:hover { background: #f9fafb; }
+    input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="row" style="justify-content: space-between; margin-bottom: 16px;">
+      <div>
+        <h1 style="margin: 0;">Flywheel Image Downloader</h1>
+        <p class="muted" style="margin: 4px 0 0;">Download specific NIfTI files by acquisition ID</p>
+      </div>
+      <div id="status" class="status-badge status-checking">Checking...</div>
+    </div>
+
+    <!-- Step 1: Search by Acquisition ID -->
+    <div class="card">
+      <h3 style="margin: 0 0 12px;">Step 1: Find Images</h3>
+
+      <div style="margin-bottom: 16px;">
+        <label style="display: inline-flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+          <input type="radio" name="searchType" value="session" checked> Session ID
+        </label>
+        <label style="display: inline-flex; align-items: center; gap: 8px; margin-left: 20px;">
+          <input type="radio" name="searchType" value="acquisition"> Acquisition ID
+        </label>
+      </div>
+
+      <label for="searchInput" id="searchLabel">Session ID</label>
+      <div class="row" style="margin-bottom: 8px;">
+        <input id="searchInput" type="text" placeholder="Enter session ID" style="flex: 1;">
+        <button id="btnSearch" style="min-width: 120px;">
+          <span id="searchText">Search</span>
+          <span id="searchSpinner" style="display: none;" class="spinner"></span>
+        </button>
+      </div>
+      <p class="muted" style="margin: 8px 0 0;" id="searchHint">
+        💡 Tip: Session IDs usually work better with read-only access
+      </p>
+    </div>
+
+    <!-- Step 2: Select Files -->
+    <div class="card" id="filesCard" style="display: none;">
+      <h3 style="margin: 0 0 12px;">Step 2: Select Files to Download</h3>
+      <div id="filesList"></div>
+      <div class="row" style="margin-top: 16px; gap: 8px;">
+        <button id="btnSelectAll" class="secondary">Select All NIfTI</button>
+        <button id="btnDownload" disabled style="margin-left: auto;">
+          <span id="downloadText">Download Selected</span>
+          <span id="downloadSpinner" style="display: none;" class="spinner"></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Step 3: Results -->
+    <div id="results" style="display: none;"></div>
+  </div>
+
+<script type="module">
+  const $ = (sel) => document.querySelector(sel);
+  const $status = $('#status');
+  const $searchInput = $('#searchInput');
+  const $searchLabel = $('#searchLabel');
+  const $searchHint = $('#searchHint');
+  const $btnSearch = $('#btnSearch');
+  const $searchText = $('#searchText');
+  const $searchSpinner = $('#searchSpinner');
+  const $filesCard = $('#filesCard');
+  const $filesList = $('#filesList');
+  const $btnSelectAll = $('#btnSelectAll');
+  const $btnDownload = $('#btnDownload');
+  const $downloadText = $('#downloadText');
+  const $downloadSpinner = $('#downloadSpinner');
+  const $results = $('#results');
+
+  let currentFiles = [];
+  let selectedFiles = new Set();
+  let currentAcquisitionId = null;
+  let searchType = 'session';
+
+  // Handle search type change
+  document.querySelectorAll('input[name="searchType"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      searchType = e.target.value;
+      if (searchType === 'session') {
+        $searchLabel.textContent = 'Session ID';
+        $searchInput.placeholder = 'Enter session ID';
+        $searchHint.textContent = '💡 Tip: Session IDs usually work better with read-only access';
+      } else {
+        $searchLabel.textContent = 'Acquisition ID';
+        $searchInput.placeholder = 'Enter acquisition ID';
+        $searchHint.textContent = '💡 Tip: You can find acquisition IDs in the Flywheel UI';
+      }
+    });
+  });
+  async function fetchJSON(url, options = {}) {
+    const r = await fetch(url, options);
+    let data = null;
+    try { data = await r.json(); } catch {}
+    if (!r.ok) throw new Error((data && (data.detail || data.message)) || `${r.status} ${r.statusText}`);
+    return data;
+  }
+
+  async function checkStatus() {
+    try {
+      const status = await fetchJSON('/flywheel/status');
+      if (status.connected) {
+        $status.className = 'status-badge status-connected';
+        $status.textContent = '✓ Connected';
+        return true;
+      } else {
+        $status.className = 'status-badge status-disconnected';
+        $status.textContent = '✗ ' + (status.message || 'Not Connected');
+        return false;
+      }
+    } catch (e) {
+      $status.className = 'status-badge status-disconnected';
+      $status.textContent = '✗ API Error';
+      return false;
+    }
+  }
+
+  function isNifti(filename) {
+    const lower = filename.toLowerCase();
+    return lower.endsWith('.nii') || lower.endsWith('.nii.gz');
+  }
+
+  async function searchData() {
+    const searchId = $searchInput.value.trim();
+    if (!searchId) {
+      alert(`Please enter a ${searchType} ID`);
+      return;
+    }
+
+    $btnSearch.disabled = true;
+    $searchText.style.display = 'none';
+    $searchSpinner.style.display = 'inline-block';
+    $filesCard.style.display = 'none';
+    $results.style.display = 'none';
+    selectedFiles.clear();
+
+    try {
+      let data;
+
+      if (searchType === 'session') {
+        // Get all acquisitions from session
+        data = await fetchJSON(`/flywheel/session/${encodeURIComponent(searchId)}`);
+
+        if (!data.acquisitions || data.acquisitions.length === 0) {
+          showMessage('No acquisitions found in this session', 'info');
+          return;
+        }
+
+        // Flatten all files from all acquisitions
+        currentFiles = [];
+        data.acquisitions.forEach(acq => {
+          acq.files.forEach(file => {
+            currentFiles.push({
+              ...file,
+              acquisition_id: acq.id,
+              acquisition_label: acq.label
+            });
+          });
+        });
+
+        currentAcquisitionId = null; // Multiple acquisitions
+        displaySessionFiles(data);
+
+      } else {
+        // Get single acquisition
+        data = await fetchJSON(`/flywheel/acquisition/${encodeURIComponent(searchId)}`);
+
+        if (!data.files || data.files.length === 0) {
+          showMessage('No files found in this acquisition', 'info');
+          return;
+        }
+
+        currentFiles = data.files.map(f => ({
+          ...f,
+          acquisition_id: searchId
+        }));
+        currentAcquisitionId = searchId;
+        displayAcquisitionFiles(data);
+      }
+
+      $filesCard.style.display = 'block';
+
+    } catch (e) {
+      let errorMsg = e.message;
+      if (errorMsg.includes('403') || errorMsg.includes('access')) {
+        errorMsg += '<br><br><strong>Suggestion:</strong> Try using a Session ID instead of Acquisition ID, as it often works better with read-only access.';
+      }
+      showMessage(errorMsg, 'err');
+    } finally {
+      $btnSearch.disabled = false;
+      $searchText.style.display = 'inline';
+      $searchSpinner.style.display = 'none';
+    }
+  }
+
+  function displaySessionFiles(sessionData) {
+    const niftiFiles = currentFiles.filter(f => isNifti(f.name));
+
+    if (niftiFiles.length === 0) {
+      $filesList.innerHTML = '<div class="msg info">No NIfTI files found in this session</div>';
+      $btnDownload.disabled = true;
+      return;
+    }
+
+    $filesList.innerHTML = `
+      <div style="margin-bottom: 12px;">
+        <strong>${sessionData.session_label || sessionData.session_id}</strong>
+        <div class="muted">Found ${niftiFiles.length} NIfTI file(s) across ${sessionData.acquisitions.length} acquisition(s)</div>
+      </div>
+      ${currentFiles.map((f, idx) => {
+        const isNii = isNifti(f.name);
+        const measurement = (f.measurement && f.measurement.length) ? f.measurement.join(', ') : '';
+        return `
+          <label class="checkbox-label file-item ${isNii ? '' : 'muted'}" data-idx="${idx}">
+            <input type="checkbox"
+              data-idx="${idx}"
+              ${isNii ? '' : 'disabled'}
+              onchange="window.toggleFile(${idx})">
+            <div style="flex: 1;">
+              <div><strong>${f.name}</strong></div>
+              <div class="muted">
+                ${f.acquisition_label || f.acquisition_id}
+                ${f.type ? ` · ${f.type}` : ''}
+                ${measurement ? ` · ${measurement}` : ''}
+                ${f.size ? ` · ${(f.size / 1024 / 1024).toFixed(1)} MB` : ''}
+              </div>
+            </div>
+          </label>
+        `;
+      }).join('')}
+    `;
+  }
+
+  function displayAcquisitionFiles(acqData) {
+    const niftiFiles = currentFiles.filter(f => isNifti(f.name));
+
+    if (niftiFiles.length === 0) {
+      $filesList.innerHTML = '<div class="msg info">No NIfTI files (.nii or .nii.gz) found in this acquisition</div>';
+      $btnDownload.disabled = true;
+      return;
+    }
+
+    $filesList.innerHTML = `
+      <div style="margin-bottom: 12px;">
+        <strong>${acqData.label || acqData.id}</strong>
+        <div class="muted">Found ${niftiFiles.length} NIfTI file(s)</div>
+      </div>
+      ${currentFiles.map((f, idx) => {
+        const isNii = isNifti(f.name);
+        const measurement = (f.measurement && f.measurement.length) ? f.measurement.join(', ') : '';
+        return `
+          <label class="checkbox-label file-item ${isNii ? '' : 'muted'}" data-idx="${idx}">
+            <input type="checkbox"
+              data-idx="${idx}"
+              ${isNii ? '' : 'disabled'}
+              onchange="window.toggleFile(${idx})">
+            <div style="flex: 1;">
+              <div><strong>${f.name}</strong></div>
+              <div class="muted">
+                ${f.type || 'file'}
+                ${measurement ? ` · ${measurement}` : ''}
+                ${f.size ? ` · ${(f.size / 1024 / 1024).toFixed(1)} MB` : ''}
+              </div>
+            </div>
+          </label>
+        `;
+      }).join('')}
+    `;
+  }
+
+  window.toggleFile = (idx) => {
+    const checkbox = document.querySelector(`input[data-idx="${idx}"]`);
+    const fileItem = document.querySelector(`.file-item[data-idx="${idx}"]`);
+
+    if (checkbox.checked) {
+      selectedFiles.add(idx);
+      fileItem.classList.add('selected');
+    } else {
+      selectedFiles.delete(idx);
+      fileItem.classList.remove('selected');
+    }
+
+    $btnDownload.disabled = selectedFiles.size === 0;
+  };
+
+  $btnSelectAll.addEventListener('click', () => {
+    const niftiFiles = currentFiles.map((f, idx) => ({ file: f, idx }))
+      .filter(({ file }) => isNifti(file.name));
+
+    const allSelected = niftiFiles.every(({ idx }) => selectedFiles.has(idx));
+
+    niftiFiles.forEach(({ idx }) => {
+      const checkbox = document.querySelector(`input[data-idx="${idx}"]`);
+      const fileItem = document.querySelector(`.file-item[data-idx="${idx}"]`);
+
+      if (allSelected) {
+        selectedFiles.delete(idx);
+        checkbox.checked = false;
+        fileItem.classList.remove('selected');
+      } else {
+        selectedFiles.add(idx);
+        checkbox.checked = true;
+        fileItem.classList.add('selected');
+      }
+    });
+
+    $btnDownload.disabled = selectedFiles.size === 0;
+    $btnSelectAll.textContent = allSelected ? 'Select All NIfTI' : 'Deselect All';
+  });
+
+  async function downloadSelected() {
+    if (selectedFiles.size === 0) return;
+
+    const acqId = $acqId.value.trim();
+    const filenames = Array.from(selectedFiles).map(idx => currentFiles[idx].name);
+
+    $btnDownload.disabled = true;
+    $downloadText.style.display = 'none';
+    $downloadSpinner.style.display = 'inline-block';
+
+    try {
+      const result = await fetchJSON('/flywheel/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          acquisition_id: acqId,
+          filenames: filenames
+        })
+      });
+
+      showMessage(
+        `✓ Downloaded ${result.downloaded.length} file(s) to ${result.cache_path}`,
+        'ok',
+        result
+      );
+
+    } catch (e) {
+      showMessage(`Download failed: ${e.message}`, 'err');
+    } finally {
+      $btnDownload.disabled = false;
+      $downloadText.style.display = 'inline';
+      $downloadSpinner.style.display = 'none';
+    }
+  }
+
+  function showMessage(text, type, details = null) {
+    $results.style.display = 'block';
+    $results.className = 'card';
+
+    let html = `<div class="msg ${type}">${text}</div>`;
+
+    if (details && details.downloaded) {
+      html += '<div style="margin-top: 12px;"><strong>Downloaded files:</strong><ul style="margin: 8px 0 0 20px;">';
+      details.downloaded.forEach(f => {
+        html += `<li><code>${f}</code></li>`;
+      });
+      html += '</ul></div>';
+    }
+
+    $results.innerHTML = html;
+    $results.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  $btnSearch.addEventListener('click', searchAcquisition);
+  $acqId.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') searchAcquisition();
+  });
+  $btnDownload.addEventListener('click', downloadSelected);
+
+  checkStatus();
+</script>
+</body>
+</html>

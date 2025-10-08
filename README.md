@@ -10,6 +10,7 @@ source .venv/bin/activate
 pip install -r api/requirements.txt
 uvicorn app.main:app --reload --port 8000 --app-dir api
 # http://localhost:8000/healthz
+# http://localhost:8000/docs
 
 ### UI (React/Vite)
 cd ui
