@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ app_name }}</title>
+
+    <!-- Link to external CSS file -->
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>{{ app_name }} <span class="version">v{{ version }}</span></h1>
+
+        <div class="info-box">
+            <p><strong>Description:</strong> {{ description }}</p>
+        </div>
+
+        <h2>Features:</h2>
+        <ul class="feature-list">
+            {% for feature in features %}
+                <li>{{ feature }}</li>
+            {% endfor %}
+        </ul>
+
+        {% if version == "1.0" %}
+            <p style="color: #667eea; font-weight: bold;">
+                🎉 Welcome to the first version!
+            </p>
+        {% endif %}
+
+        <hr>
+
+        <h2>Coming Soon:</h2>
+        <p>Image upload and processing functionality will be added next!</p>
+    </div>
+</body>
+</html>

@@ -1,17 +1,36 @@
-# This is a sample Python script.
+from fastapi import FastAPI, Request
+from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
 
-# Press ⌃F5 to execute it or replace it with your code.
-# Press Double ⇧ to search everywhere for classes, files, tool windows, actions, and settings.
+# Create FastAPI app
+app = FastAPI()
+
+# Setup Jinja2 templates
+templates = Jinja2Templates(directory="templates")
+
+# Mount static files (for serving images later)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press F9 to toggle the breakpoint.
+# Homepage route - serves HTML with Jinja
+@app.get("/")
+async def home(request: Request):
+    # These variables will be available in the HTML template
+    context = {
+        "request": request,  # Required by Jinja2
+        "app_name": "Image Processing App",
+        "version": "1.0",
+        "description": "Upload and process your images",
+        "features": [
+            "Upload images",
+            "Process with Python/Bash",
+            "View with Papaya viewer"
+        ]
+    }
+    return templates.TemplateResponse("index.html", context)
 
 
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
-    print_hi('PyCharm')
 
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
-# Placeholder file to keep the ui/ directory in git
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
