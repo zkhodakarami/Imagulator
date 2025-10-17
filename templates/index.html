@@ -6,7 +6,8 @@
     <title>{{ app_name }}</title>
 
     <!-- Link to external CSS file -->
-    <link rel="stylesheet" href="/static/css/style.css">
+<!--    <link rel="stylesheet" href="/static/css/style.css">-->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootswatch@5/dist/simplex/bootstrap.min.css">
 </head>
 <body>
     <div class="container">
@@ -15,13 +16,21 @@
         <div class="info-box">
             <p><strong>Description:</strong> {{ description }}</p>
         </div>
+        <div class="card text-white bg-dark mb-3" style="max-width: 20rem;">
+            <div class="card-header">Items:</div>
+            <div class="card-body">
+              <h4 class="card-title">Features</h4>
+              <p class="card-text">
+                  <ul class="feature-list">
+                    {% for feature in features %}
+                        <li>{{ feature }}</li>
+                    {% endfor %}
+                    </ul>
 
-        <h2>Features:</h2>
-        <ul class="feature-list">
-            {% for feature in features %}
-                <li>{{ feature }}</li>
-            {% endfor %}
-        </ul>
+                  </p>
+            </div>
+          </div>
+
 
         {% if version == "1.0" %}
             <p style="color: #667eea; font-weight: bold;">
