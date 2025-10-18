@@ -1,13 +1,41 @@
-from fastapi import FastAPI, Request, UploadFile, File, HTTPException
+from fastapi import FastAPI, Request, UploadFile, File, HTTPException, Form
 from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse, FileResponse
-import os
-import shutil
-from datetime import datetime
+from starlette.middleware.sessions import SessionMiddleware
+import sqlite3, time, os
 from pathlib import Path
-# Create FastAPI app
+from argon2 import PasswordHasher
+
+# Fix database path
+BASE = Path(__file__).resolve().parent
+DB   = BASE / "database" / "identifier.sqlite"
+DB.parent.mkdir(parents=True, exist_ok=True)
+
+def get_conn():
+    con = sqlite3.connect(DB)
+    con.row_factory = sqlite3.Row
+    con.execute("PRAGMA foreign_keys=ON;")
+    return con
+
+ph = PasswordHasher()
+
+# Add this helper function after ph = PasswordHasher()
+def get_current_user(request: Request):
+    """Get current logged-in user from session"""
+    user_id = request.session.get("user_id")
+    if not user_id:
+        return None
+    
+    with get_conn() as con:
+        row = con.execute("SELECT * FROM user WHERE id = ?", (user_id,)).fetchone()
+        return dict(row) if row else None
+
 app = FastAPI()
+
+# Add session middleware
+app.add_middleware(SessionMiddleware, secret_key="change-this-secret-key-in-production")
 
 # Setup Jinja2 templates
 templates = Jinja2Templates(directory="templates")
@@ -26,12 +54,18 @@ PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 # Homepage route - serves HTML with Jinja
 @app.get("/")
 async def home(request: Request):
+    # Get any messages from URL params (from redirects)
+    message = request.query_params.get("message")
+    error = request.query_params.get("error")
+    
     # These variables will be available in the HTML template
     context = {
         "request": request,  # Required by Jinja2
         "app_name": "Image Processing App",
         "version": "1.0",
         "description": "Upload and process your images",
+        "message": message,  # Add message to context
+        "error": error,      # Add error to context
         "features": [
             "Upload images",
             "Process with Python/Bash",
@@ -40,44 +74,77 @@ async def home(request: Request):
     }
     return templates.TemplateResponse("index.html", context)
 
+# Add dashboard route after the home route
+@app.get("/dashboard")
+async def dashboard(request: Request):
+    # Check if user is logged in
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse("/?error=Please+log+in+first", status_code=303)
+    
+    # Get any messages from URL params
+    message = request.query_params.get("message")
+    
+    context = {
+        "request": request,
+        "app_name": "Image Processing App",
+        "user": user,
+        "message": message
+    }
+    return templates.TemplateResponse("dashboard.html", context)
 
-# ==================== API ENDPOINTS ====================
-
-@app.post("/api/upload")
-async def upload_image(file: UploadFile = File(...)):
-    """
-    Upload an image file
-
-    Returns:
-        - success: boolean
-        - filename: stored filename
-        - url: URL to access the file
-        - message: status message
-    """
+# Handle sign up
+@app.post("/signup")
+def signup(request: Request, email: str = Form(...), username: str = Form(...), password: str = Form(...)):
+    ts = int(time.time())
     try:
-        # Validate file
-        if not file.filename:
-            raise HTTPException(status_code=400, detail="No file provided")
+        with get_conn() as con:
+            cursor = con.execute("""
+                INSERT INTO user (username, email, password, role, created_at, updated_at)
+                VALUES (?, ?, ?, 'doctor', ?, ?)
+            """, (username, email, ph.hash(password), ts, ts))
+            # Auto-login after signup
+            request.session["user_id"] = cursor.lastrowid
+            request.session["username"] = username
+    except sqlite3.IntegrityError:
+        return RedirectResponse("/?error=Username+or+email+already+exists", status_code=303)
+    
+    # Redirect to dashboard after successful signup
+    return RedirectResponse("/dashboard?message=Account+created+successfully", status_code=303)
 
-        # Generate unique filename
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        unique_filename = f"{timestamp}_{file.filename}"
-        file_path = UPLOAD_DIR / unique_filename
+# Handle login (email OR username + password)
+@app.post("/login")
+def login(request: Request, email: str = Form(""), username: str = Form(""), password: str = Form(...)):
+    ident = email or username
+    if not ident:
+        return RedirectResponse("/?error=Provide+email+or+username", status_code=303)
 
-        # Save file
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+    with get_conn() as con:
+        row = con.execute("""
+            SELECT * FROM user
+            WHERE email = ? COLLATE NOCASE OR username = ? COLLATE NOCASE
+            LIMIT 1
+        """, (ident, ident)).fetchone()
 
-        return {
-            "success": True,
-            "filename": unique_filename,
-            "url": f"/static/uploads/{unique_filename}",
-            "message": "File uploaded successfully"
-        }
+    if not row:
+        return RedirectResponse("/?error=Invalid+credentials", status_code=303)
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    try:
+        ph.verify(row["password"], password)
+        # Create session on successful login
+        request.session["user_id"] = row["id"]
+        request.session["username"] = row["username"]
+    except Exception:
+        return RedirectResponse("/?error=Invalid+credentials", status_code=303)
 
+    # Redirect to dashboard instead of home page
+    return RedirectResponse("/dashboard?message=Logged+in+successfully", status_code=303)
+
+# Update logout to redirect to home page
+@app.post("/logout")
+def logout(request: Request):
+    request.session.clear()
+    return RedirectResponse("/?message=Logged+out+successfully", status_code=303)
 
 if __name__ == "__main__":
     import uvicorn

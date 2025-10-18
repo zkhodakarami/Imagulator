@@ -6,12 +6,26 @@
     <title>{{ app_name }}</title>
 
     <!-- Link to external CSS file -->
-<!--    <link rel="stylesheet" href="/static/css/style.css">-->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootswatch@5/dist/simplex/bootstrap.min.css">
 </head>
 <body>
     <div class="container">
         <h1>{{ app_name }} <span class="version">v{{ version }}</span></h1>
+
+        <!-- Display messages -->
+        {% if message %}
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endif %}
+        
+        {% if error %}
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                {{ error }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endif %}
 
         <div class="info-box">
             <p><strong>Description:</strong> {{ description }}</p>
@@ -32,16 +46,62 @@
           </div>
 
 
-        {% if version == "1.0" %}
-            <p style="color: #667eea; font-weight: bold;">
-                🎉 Welcome to the first version!
-            </p>
-        {% endif %}
+<!--        {% if version == "1.0" %}-->
+<!--            <p style="color: #667eea; font-weight: bold;">-->
+<!--                🎉 Welcome to the first version!-->
+<!--            </p>-->
+<!--        {% endif %}-->
 
         <hr>
 
-        <h2>Coming Soon:</h2>
-        <p>Image upload and processing functionality will be added next!</p>
+          <div class="row g-4">
+            <!-- LOGIN -->
+            <div class="col-12 col-md-6">
+              <label class="form-label mt-2">Login</label>
+              <form method="post" action="/login" class="card card-body">
+                <div class="form-floating mb-3">
+                  <input type="email" name="email" class="form-control" id="loginEmail" placeholder="name@example.com">
+                  <label for="loginEmail">Email (or leave blank and use username)</label>
+                </div>
+                <div class="form-floating mb-3">
+                  <input type="text" name="username" class="form-control" id="loginUsername" placeholder="username">
+                  <label for="loginUsername">Unique username (optional if email provided)</label>
+                </div>
+                <div class="form-floating mb-3">
+                  <input type="password" name="password" class="form-control" id="loginPassword" placeholder="Password" autocomplete="off">
+                  <label for="loginPassword">Password</label>
+                </div>
+                <div class="d-grid">
+                  <button class="btn btn-lg btn-primary" type="submit">Login</button>
+                </div>
+              </form>
+            </div>
+
+            <!-- SIGN UP -->
+            <div class="col-12 col-md-6">
+              <label class="form-label mt-2">Sign up</label>
+              <form method="post" action="/signup" class="card card-body">
+                <div class="form-floating mb-3">
+                  <input type="email" name="email" class="form-control" id="signupEmail" placeholder="name@example.com" required>
+                  <label for="signupEmail">Email</label>
+                </div>
+                <div class="form-floating mb-3">
+                  <input type="text" name="username" class="form-control" id="signupUsername" placeholder="unique username" required>
+                  <label for="signupUsername">Unique username</label>
+                </div>
+                <div class="form-floating mb-3">
+                  <input type="password" name="password" class="form-control" id="signupPassword" placeholder="Password" autocomplete="off" required>
+                  <label for="signupPassword">Password</label>
+                </div>
+                <div class="d-grid">
+                  <button class="btn btn-lg btn-success" type="submit">Create account</button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+<!--        <h2>Coming Soon:</h2>-->
+<!--        <p>Image upload and processing functionality will be added next!</p>-->
     </div>
 </body>
 </html>
