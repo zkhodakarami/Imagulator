@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Patient - {{ app_name }}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootswatch@5/dist/simplex/bootstrap.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</head>
+<body>
+    {% include 'dashboard/nav_header.html' %}
+
+    <div class="container mt-4">
+        {% if message %}
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endif %}
+
+        {% if error %}
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                {{ error }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endif %}
+
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="mb-0">Add New Patient</h4>
+                    </div>
+                    <div class="card-body">
+                        <form method="post" action="/new-patient" enctype="multipart/form-data">
+                            <!-- Patient Information -->
+                            <h5 class="mb-3 text-primary">Patient Information</h5>
+
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="patient_code" class="form-label">Patient Code</label>
+                                    <input type="text" class="form-control" id="patient_code" name="patient_code"
+                                           placeholder="e.g., P001, PT_2024_001" required>
+                                    <div class="form-text">Unique identifier for this patient</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="birthdate" class="form-label">Birth Date</label>
+                                    <input type="date" class="form-control" id="birthdate" name="birthdate" required>
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="sex" class="form-label">Sex</label>
+                                    <select class="form-select" id="sex" name="sex" required>
+                                        <option value="">Select...</option>
+                                        <option value="M">Male</option>
+                                        <option value="F">Female</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="clinical_diagnosis" class="form-label">Clinical Diagnosis</label>
+                                <textarea class="form-control" id="clinical_diagnosis" name="clinical_diagnosis"
+                                          rows="3" placeholder="Enter clinical diagnosis or medical notes"></textarea>
+                            </div>
+
+                            <!-- Image Upload Section -->
+                            <hr class="my-4">
+                            <h5 class="mb-3 text-primary">MRI Images Upload (Optional)</h5>
+                            
+                            <div id="image-upload-container">
+                                <div class="image-upload-form" id="image-form-0">
+                                    <div class="card mb-3">
+                                        <div class="card-header d-flex justify-content-between align-items-center">
+                                            <h6 class="mb-0">Image #1</h6>
+                                            <button type="button" class="btn btn-sm btn-outline-danger remove-image" style="display: none;">Remove</button>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row mb-3">
+                                                <div class="col-md-6">
+                                                    <label for="mri_date_0" class="form-label">MRI Date *</label>
+                                                    <input type="date" class="form-control" id="mri_date_0" name="mri_date_0">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label for="modality_0" class="form-label">Modality *</label>
+                                                    <select class="form-select" id="modality_0" name="modality_0">
+                                                        <option value="">Select modality...</option>
+                                                        <option value="CT">CT</option>
+                                                        <option value="T1">T1</option>
+                                                        <option value="T2">T2</option>
+                                                        <option value="Flair">FLAIR</option>
+                                                        <option value="Pet">PET</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+
+                                            <div class="mb-3">
+                                                <label for="image_file_0" class="form-label">Select Image File *</label>
+                                                <input type="file" class="form-control image-file-input" id="image_file_0" name="image_file_0"
+                                                       accept=".nii,.nii.gz,.dcm,.jpg,.jpeg,.png">
+                                                <div class="form-text">
+                                                    Upload MRI image (NIFTI, DICOM, or standard image formats).
+                                                </div>
+                                            </div>
+
+                                            <div class="mb-3">
+                                                <label for="image_notes_0" class="form-label">Image Notes</label>
+                                                <textarea class="form-control" id="image_notes_0" name="image_notes_0"
+                                                          rows="2" placeholder="Additional notes about this image"></textarea>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <button type="button" class="btn btn-outline-primary" id="add-image-btn">
+                                    <i class="bi bi-plus"></i> Add Another Image
+                                </button>
+                            </div>
+
+                            <!-- Form Actions -->
+                            <hr class="my-4">
+                            <div class="d-flex justify-content-between">
+                                <a href="/dashboard" class="btn btn-secondary">Cancel</a>
+                                <div>
+                                    <button type="submit" name="action" value="patient_only" class="btn btn-outline-primary me-2">
+                                        Save Patient Only
+                                    </button>
+                                    <button type="submit" name="action" value="patient_and_images" class="btn btn-primary">
+                                        Save Patient & Upload Images
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- External JavaScript -->
+    <script src="/static/js/new_patient.js"></script></body>
+</html>
