@@ -18,3 +18,5 @@ dist/
 # Editor
 .vscode/
 .idea/
+
+database/schema.sql

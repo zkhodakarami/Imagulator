@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Patients - {{ app_name }}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootswatch@5/dist/simplex/bootstrap.min.css">
+    <link rel="stylesheet" type="text/css" href="/static/papaya/papaya.css" />
+    <script type="text/javascript" src="papaya.js"></script>
+</head>
+<body>
+
+    {% include 'dashboard/nav_header.html' %}
+    <!-- Load jQuery (required for Papaya) -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script>
+
+    <!-- Load Bootstrap -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Load Papaya -->
+    <script type="text/javascript" src="/static/papaya/papaya.js"></script>
+
+    <!-- Load image selector script -->
+    <script type="text/javascript" src="/static/js/papaya_simple.js"></script>
+
+    <div class="container-fluid">
+        <div class="row g-0 min-vh-100">
+            <!-- Sidebar -->
+            <div class="col-12 col-md-4 col-lg-3 border-end overflow-auto">
+                <div class="p-3">
+                    <h5 class="mb-3">My Images</h5>
+
+                    {% if images and images|length > 0 %}
+                        <div class="list-group list-group-flush">
+                            {% for img in images %}
+                                <a href="#" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center image-selector"
+                                   url="{{ img.url }}"
+                                   data-patient-code="{{ img.patient_code }}">
+                                    <span>
+                                        <span class="text-primary fw-bold">{{ img.patient_code }}</span>
+                                        {% if img.mri_date %}<span class="text-muted"> [{{ img.mri_date }}]</span>{% endif %}
+                                        <br>
+                                        <small>{{ img.image_name }}</small>
+                                    </span>
+                                    {% if img.modality %}
+                                        <span class="badge rounded-pill bg-primary">{{ img.modality }}</span>
+                                    {% endif %}
+                                </a>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="card bg-light border">
+                            <div class="card-body">
+                                <p class="mb-2">No images found. Upload images from the New Patient page.</p>
+                                <a href="/new-patient" class="btn btn-sm btn-primary">Add Patient</a>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Viewer -->
+            <div class="col-12 col-md-8 col-lg-9 d-flex flex-column papaya-container">
+                <div id="noImageMessage" class="d-flex flex-column justify-content-center align-items-center text-muted p-4 w-100" style="min-height: 50vh;">
+                    <h5 class="mb-2">Select an image to view</h5>
+                    <p class="mb-0">Choose an image from the left to load it in the Papaya viewer.</p>
+                </div>
+                <div id="papayaViewer" class="papaya" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

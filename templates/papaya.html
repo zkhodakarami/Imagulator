@@ -1,28 +1,209 @@
+
 <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Patients - {{ app_name }}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootswatch@5/dist/simplex/bootstrap.min.css">
+    
+    <!-- Load Papaya CSS -->
+    <link rel="stylesheet" type="text/css" href="/static/papaya/papaya.css" />
 
-<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
-	<head>
-    	<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-    
-    	<!-- iOS meta tags -->
-    	<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
-    	<meta name="apple-mobile-web-app-capable" content="yes">
-    	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    
-    	<link rel="stylesheet" type="text/css" href="../static/papaya/papaya.css?build=1456" />
-    	<script type="text/javascript" src="../static/papaya/papaya.js?build=1456"></script>
-    
-    	<title>Papaya Viewer</title>
-    
-    	<script type="text/javascript">
-var params = [];
-</script>
+    <style>
+        html, body { height: 100%; margin: 0; }
+        .papaya-container { height: 100%; background: #000; }
+        .papaya { width: 100%; height: 100%; }
+    </style>
+</head>
+<body>
+    {% include 'dashboard/nav_header.html' %}
 
-	</head>
+    <div class="container-fluid">
+        <div class="row g-0 min-vh-100">
+            <!-- Sidebar -->
+            <div class="col-12 col-md-4 col-lg-3 border-end overflow-auto">
+                <div class="p-3">
+                    <h5 class="mb-3">My Patients</h5>
 
-	<body>
-		
-		<div class="papaya" data-params="params"></div>
-		
-	</body>
+                    {% if patients and patients|length > 0 %}
+                        {% for code, p in patients.items() %}
+                            <div class="mb-3">
+                                <div class="fw-bold text-primary small text-uppercase">{{ code }}
+                                    {% if p.sex %}
+                                        <span class="text-muted fw-normal"> • {{ p.sex }}{% if p.birthdate %}, {{ p.birthdate }}{% endif %}</span>
+                                    {% endif %}
+                                </div>
+                                {% if p.images and p.images|length > 0 %}
+                                    <div class="list-group list-group-flush">
+                                        {% for img in p.images %}
+                                            <a href="#" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center image-selector"
+                                               data-image-url="{{ img.url }}"
+                                               data-patient-code="{{ p.patient_code }}">
+                                                <span>
+                                                    {% if img.mri_date %}<span class="text-muted">[{{ img.mri_date }}]</span> {% endif %}
+                                                    {{ img.image_name or 'Image ' ~ img.image_id }}
+                                                </span>
+                                                {% if img.modality %}
+                                                    <span class="badge rounded-pill bg-primary">{{ img.modality }}</span>
+                                                {% endif %}
+                                            </a>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <div class="text-muted ms-2">No images uploaded</div>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="card bg-light border">
+                            <div class="card-body">
+                                <p class="mb-2">No patients found. Create one from the New Patient page.</p>
+                                <a href="/new-patient" class="btn btn-sm btn-primary">Add Patient</a>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Viewer -->
+            <div class="col-12 col-md-8 col-lg-9 d-flex flex-column papaya-container">
+                {% if initial_image_url %}
+                    <div id="papayaViewer" class="papaya" data-params="params"></div>
+                {% else %}
+                    <div id="noImageMessage" class="d-flex flex-column justify-content-center align-items-center text-muted p-4 w-100" style="min-height: 50vh;">
+                        <h5 class="mb-2">Select an image to view</h5>
+                        <p class="mb-0">Choose an image from the left to load it in the Papaya viewer.</p>
+                    </div>
+                    <div id="papayaViewer" class="papaya" data-params="params" style="display: none;"></div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- IMPORTANT: Load jQuery FIRST (Papaya depends on it) -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    
+    <!-- Then load Bootstrap (which also needs jQuery) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script type="text/javascript">
+        // Configure Papaya parameters globally
+        var params = [];
+        params[0] = {
+            "kioskMode": true,
+            "showControls": true,
+            "radiological": true,
+            {% if initial_image_url %}
+            "images": ["{{ initial_image_url }}"]
+            {% endif %}
+        };
+    </script>
+
+    <!-- Load Papaya JS after jQuery and params are defined -->
+    <script type="text/javascript" src="/static/papaya/papaya.js"></script>
+
+    <script>
+        (function(){
+            var papayaContainer = document.getElementById('papayaViewer');
+            var noImageMessage = document.getElementById('noImageMessage');
+            var currentContainer = null;
+
+            function loadInPapaya(imageUrl){
+                if (!imageUrl) {
+                    console.error('No image URL provided');
+                    return;
+                }
+
+                console.log('Loading image:', imageUrl);
+
+                // Show papaya container, hide message
+                if (noImageMessage) noImageMessage.style.display = 'none';
+                papayaContainer.style.display = 'block';
+
+                // Check if jQuery is loaded
+                if (typeof jQuery === 'undefined') {
+                    console.error('jQuery not loaded - Papaya requires jQuery');
+                    alert('jQuery is required for Papaya viewer. Please refresh the page.');
+                    return;
+                }
+
+                // Check if Papaya is loaded
+                if (typeof papaya === 'undefined' || !papaya.Container) {
+                    console.error('Papaya library not loaded');
+                    alert('Papaya viewer library failed to load. Please check if /static/papaya/papaya.js is accessible.');
+                    return;
+                }
+
+                try {
+                    console.log('Loading new image into Papaya viewer');
+                    
+                    // Clear the container and recreate it
+                    papayaContainer.innerHTML = '';
+                    
+                    // Create a fresh div for Papaya
+                    var viewerDiv = document.createElement('div');
+                    viewerDiv.className = 'papaya';
+                    viewerDiv.setAttribute('data-params', 'params');
+                    papayaContainer.appendChild(viewerDiv);
+                    
+                    // Update params with new image
+                    params = [];
+                    params[0] = {
+                        "kioskMode": true,
+                        "showControls": true,
+                        "radiological": true,
+                        "images": [imageUrl]
+                    };
+                    
+                    console.log('Initializing Papaya with image:', imageUrl);
+                    
+                    // Initialize new Papaya container
+                    currentContainer = new papaya.Container(viewerDiv);
+                    
+                    console.log('Papaya container created successfully');
+                    
+                } catch (e) {
+                    console.error('Papaya loading error:', e);
+                    console.error('Error stack:', e.stack);
+                    alert('Error loading image viewer. Error: ' + e.message + '\nCheck console for details.');
+                }
+            }
+
+            // Add click handlers to image selectors
+            document.querySelectorAll('.image-selector').forEach(function(item){
+                item.addEventListener('click', function(e){
+                    e.preventDefault();
+                    var url = this.getAttribute('data-image-url');
+                    console.log('Image clicked, URL:', url);
+                    loadInPapaya(url);
+
+                    // Highlight selected item
+                    document.querySelectorAll('.image-selector').forEach(function(el){
+                        el.classList.remove('active');
+                    });
+                    this.classList.add('active');
+                });
+            });
+
+            // Check if all dependencies loaded successfully
+            window.addEventListener('load', function() {
+                console.log('Window loaded');
+                console.log('jQuery available:', typeof jQuery !== 'undefined');
+                console.log('Papaya available:', typeof papaya !== 'undefined');
+                console.log('Papaya.Container available:', typeof papaya !== 'undefined' && typeof papaya.Container !== 'undefined');
+                
+                if (typeof jQuery === 'undefined') {
+                    console.error('jQuery failed to load - Papaya requires jQuery');
+                }
+                
+                if (typeof papaya === 'undefined') {
+                    console.error('Papaya failed to load. Check if files exist at:');
+                    console.error('- /static/papaya/papaya.js');
+                    console.error('- /static/papaya/papaya.css');
+                }
+            });
+        })();
+    </script>
+</body>
 </html>

@@ -46,13 +46,14 @@ templates = Jinja2Templates(directory="templates")
 
 # Mount static files (for serving images later)
 app.mount("/static", StaticFiles(directory="static"), name="static")
-
+# Expose the existing database Images directory directly (no separate /media)
+app.mount("/database/Images", StaticFiles(directory=str(BASE / "database" / "Images")), name="images")
 
 # Use the existing Images directory structure
 UPLOAD_DIR = BASE / "database" / "Images" / "uploaded"
-PROCESSED_DIR = BASE / "database" / "Images" / "processed"
+sourPROCESSED_DIR = BASE / "database" / "Images" / "processed"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+# PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 
 #######webpages
 # Homepage route - serves HTML with Jinja
@@ -191,7 +192,15 @@ async def create_patient(request: Request):
                         if mri_date and modality:
                             try:
                                 # Generate unique filename
+
+
                                 file_extension = Path(image_file.filename).suffix
+                                # p = Path(image_file.filename)
+                                # suffixes = p.suffixes  # e.g. ['.nii', '.gz']
+
+                                if file_extension == '.gz':
+                                    file_extension = '.nii.gz'
+
                                 unique_filename = f"{patient_code}_{modality}_{image_index}_{int(time.time())}{file_extension}"
                                 storage_path = UPLOAD_DIR / unique_filename
 
@@ -247,46 +256,116 @@ async def create_patient(request: Request):
         return RedirectResponse(f"/new-patient?error={quote_plus('Failed to save patient')}", status_code=303)
 
 
+# Updated /patients route - no initial image loading
+
+# Simplified - just list images without patient grouping
+
 @app.get("/patients")
 async def view_patients(request: Request):
+    """Display images from this doctor's patients"""
     user = get_current_user(request)
     if not user:
         return RedirectResponse("/?error=Please+log+in+first", status_code=303)
-    
+
+    # Get all images from this doctor's patients
+    with get_conn() as con:
+        rows = con.execute(
+            """
+            SELECT i.id           AS image_id,
+                   i.mri_date     AS mri_date,
+                   i.image_name   AS image_name,
+                   i.modality     AS modality,
+                   i.storage_path AS storage_path,
+                   p.patient_code AS patient_code
+            FROM image i
+                     INNER JOIN patient p ON i.patient_id = p.id
+            WHERE p.doctor_username = ?
+            ORDER BY i.mri_date DESC, i.id DESC
+            """,
+            (user["username"],)
+        ).fetchall()
+
+    # Build simple list of images
+    images = []
+    for row in rows:
+        row = dict(row)
+        storage_path = row.get("storage_path")
+        print(storage_path)
+        # Build URL from storage_path
+        if storage_path:
+            image_url =  storage_path
+        else:
+            image_url = None
+
+        images.append({
+            "image_id": row["image_id"],
+            "patient_code": row["patient_code"],
+            "mri_date": row.get("mri_date"),
+            "image_name": row.get("image_name"),
+            "modality": row.get("modality"),
+            "url": image_url,
+        })
+
     context = {
         "request": request,
         "app_name": "Image Processing App",
         "user": user,
-        "current_page": "patients"
+        "current_page": "patients",
+        "images": images,
     }
 
-    # For now, redirect to new_patient - you can change this later
-    return RedirectResponse("/new-patient", status_code=303)
-    user = get_current_user(request)
-    if not user:
-        return RedirectResponse("/?error=Please+log+in+first", status_code=303)
-    
-    context = {
-        "request": request,
-        "app_name": "Image Processing App",
-        "user": user,
-        "current_page": "process_images"
-    }
-    return templates.TemplateResponse("process_images.html", context)
+    return templates.TemplateResponse("dashboard/patients.html", context)
 
+async def _serve_image_by_id(image_id: int):
+    """Internal helper to locate and stream image by id."""
+    with get_conn() as con:
+        row = con.execute(
+            "SELECT storage_path FROM image WHERE id = ?",
+            (image_id,)
+        ).fetchone()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Image not found in database")
+
+    storage_path = row["storage_path"]
+
+    if not storage_path:
+        raise HTTPException(status_code=404, detail="Image has no storage path")
+
+    # Construct the full file path
+    # Adjust this based on how your storage_path is formatted
+    file_path = storage_path
+
+    # Check if file exists
+    if not os.path.exists(file_path):
+        # Try alternative paths if needed
+        alt_path = os.path.join("database", storage_path.lstrip("/"))
+        if os.path.exists(alt_path):
+            file_path = alt_path
+        else:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Image file not found: {storage_path}"
+            )
+
+    return FileResponse(file_path)
 @app.get("/papaya")
 async def papaya_viewer(request: Request):
     user = get_current_user(request)
     if not user:
         return RedirectResponse("/?error=Please+log+in+first", status_code=303)
-    
+
+    image_url = request.query_params.get("image")
+
     context = {
         "request": request,
         "app_name": "Image Processing App",
         "user": user,
-        "current_page": "papaya_viewer"
+        "current_page": "papaya_viewer",
+        "image_url": image_url,
     }
     return templates.TemplateResponse("papaya.html", context)
+
 
 # Handle sign up
 @app.post("/signup")
