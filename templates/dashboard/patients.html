@@ -6,22 +6,10 @@
     <title>Patients - {{ app_name }}</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootswatch@5/dist/simplex/bootstrap.min.css">
     <link rel="stylesheet" type="text/css" href="/static/papaya/papaya.css" />
-    <script type="text/javascript" src="papaya.js"></script>
 </head>
 <body>
 
     {% include 'dashboard/nav_header.html' %}
-    <!-- Load jQuery (required for Papaya) -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script>
-
-    <!-- Load Bootstrap -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-
-    <!-- Load Papaya -->
-    <script type="text/javascript" src="/static/papaya/papaya.js"></script>
-
-    <!-- Load image selector script -->
-    <script type="text/javascript" src="/static/js/papaya_simple.js"></script>
 
     <div class="container-fluid">
         <div class="row g-0 min-vh-100">
@@ -65,10 +53,64 @@
                     <h5 class="mb-2">Select an image to view</h5>
                     <p class="mb-0">Choose an image from the left to load it in the Papaya viewer.</p>
                 </div>
-                <div id="papayaViewer" class="papaya" style="display: none;"></div>
+
+                <div class="papaya" data-params='{"worldSpace": true, "images": ["database/Images/uploaded/300_Flair_0_1760832975.nii"]}'></div>
             </div>
         </div>
     </div>
+
+    <!-- Load jQuery (required for Papaya) -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script>
+
+    <!-- Load Bootstrap -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Load Papaya -->
+    <script type="text/javascript" src="/static/papaya/papaya.js"></script>
+
+    <!-- Image selector script -->
+<script>
+    // Papaya usually initializes index 0 automatically on page load
+    // because the div has class="papaya"
+
+    $(document).ready(function() {
+
+        // 1. We need to ensure Papaya builds the viewer even if hidden initially.
+        // However, Papaya has trouble calculating size on "display:none" elements.
+        // For now, we rely on resetViewer to fix the drawing.
+
+        $('.image-selector').on('click', function(e) {
+            e.preventDefault();
+
+            // Get the URL
+            var imageUrl = $(this).data('url');
+            console.log('Loading image:', imageUrl);
+
+            // UI Toggles
+            $('#noImageMessage').hide();
+            var viewer = $('#papayaViewer');
+            viewer.show();
+
+            // 2. Create the params object
+            var params = [];
+            params["images"] = [imageUrl];
+
+            // Optional: Add other config like specific window levels here
+            // params["kioskMode"] = true;
+
+            // 3. THE FIX: Use resetViewer instead of empty()/startPapaya()
+            // 0 represents the index of the viewer (since you only have one)
+            papaya.Container.resetViewer(0, params);
+
+            // 4. Resize Fix: Because the div was hidden ("display: none"),
+            // Papaya might have calculated width/height as 0.
+            // We force a resize event so it redraws correctly.
+            setTimeout(function() {
+                $(window).trigger('resize');
+            }, 100);
+        });
+    });
+</script>
 
 </body>
 </html>

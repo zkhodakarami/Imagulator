@@ -293,7 +293,7 @@ async def view_patients(request: Request):
         print(storage_path)
         # Build URL from storage_path
         if storage_path:
-            image_url =  storage_path
+            image_url = storage_path
         else:
             image_url = None
 
